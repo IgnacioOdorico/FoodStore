@@ -1,0 +1,21 @@
+# Environments
+.conda/
+.venv/
+venv/
+env/
+__pycache__/
+
+# Dependencies
+node_modules/
+
+# IDE
+.vscode/
+
+# Large Files
+*.mp4
+*.zip
+*.rar
+
+# OS files
+.DS_Store
+Thumbs.db

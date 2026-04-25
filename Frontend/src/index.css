@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #6E7F3F;
+  --color-brand-hover: #5a6b33;
+  --color-brand-active: #4a592a;
+  --color-cocoa: #8A5A3C;
+  
+  --color-canvas: #B7C48A;
+  --color-surface: #6E7F3F;
+  
+  --radius-btn: 0.5rem;
+}
+
+@layer base {
+  body {
+    @apply bg-canvas text-gray-900;
+  }
+  button, a, select {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand text-white font-semibold py-2 px-4 rounded-btn shadow-sm 
+           hover:bg-brand-hover active:bg-brand-active disabled:opacity-50 
+           disabled:cursor-not-allowed transition-all duration-200 
+           focus:outline-none focus:ring-2 focus:ring-brand/50 cursor-pointer;
+  }
+  
+  .btn-secondary {
+    @apply bg-white/10 text-white border border-white/20 font-semibold py-2 px-4 rounded-btn
+           hover:bg-white/20 active:bg-white/30 disabled:opacity-50
+           transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 text-white font-semibold py-2 px-4 rounded-btn shadow-sm 
+           hover:bg-red-600 active:bg-red-700 disabled:opacity-50 
+           disabled:cursor-not-allowed transition-all duration-200 
+           focus:outline-none focus:ring-2 focus:ring-red-200 cursor-pointer;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-2 border-2 border-cocoa/40 rounded-btn bg-white/5 text-white placeholder:text-white/40
+           focus:outline-none focus:ring-2 focus:ring-cocoa/50 focus:border-cocoa
+           transition-all duration-200 disabled:bg-gray-800 cursor-text;
+  }
+  
+  select.input-field {
+    @apply cursor-pointer;
+  }
+
+  .card {
+    @apply bg-surface rounded-2xl shadow-xl border-2 border-cocoa/50 p-6 text-white backdrop-blur-sm;
+  }
+}
