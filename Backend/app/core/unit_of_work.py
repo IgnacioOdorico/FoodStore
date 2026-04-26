@@ -7,7 +7,8 @@ class AbstractUnitOfWork(ABC):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.rollback()
+        if exc_type:
+            self.rollback()
 
     @abstractmethod
     def commit(self):

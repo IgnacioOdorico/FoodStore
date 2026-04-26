@@ -1,4 +1,5 @@
 from sqlmodel import select, text
+from datetime import datetime
 from app.modules.producto.unit_of_work import ProductoUnitOfWork
 from app.modules.producto.models import Producto, ProductoCategoria, ProductoIngrediente
 from app.modules.producto.schemas import (
@@ -92,6 +93,51 @@ class ProductoService:
                     ing_dto.es_removible = link.es_removible
 
             return dto
+
+    def update_producto(self, id: int, data: ProductoUpdate):
+        with ProductoUnitOfWork() as uow:
+            producto = uow.productos.get(id)
+            if not producto:
+                return None
+            
+            # 1. Actualizo campos básicos
+            update_data = data.model_dump(exclude_unset=True, exclude={"categoria_ids", "ingrediente_ids"})
+            for key, value in update_data.items():
+                setattr(producto, key, value)
+            
+            producto.updated_at = datetime.now()
+            
+            # 2. Sincronizo Categorías (N:N)
+            if data.categoria_ids is not None:
+                # Borro las relaciones actuales usando el ORM para que la sesión esté al tanto
+                # En lugar de SQL puro, busco los objetos y los borro.
+                existing_cats = uow.session.exec(
+                    select(ProductoCategoria).where(ProductoCategoria.producto_id == id)
+                ).all()
+                for ec in existing_cats:
+                    uow.session.delete(ec)
+                
+                # Agrego las nuevas
+                for cat_id in data.categoria_ids:
+                    uow.session.add(ProductoCategoria(producto_id=id, categoria_id=cat_id, es_principal=True))
+            
+            # 3. Sincronizo Ingredientes (N:N)
+            if data.ingrediente_ids is not None:
+                existing_ings = uow.session.exec(
+                    select(ProductoIngrediente).where(ProductoIngrediente.producto_id == id)
+                ).all()
+                for ei in existing_ings:
+                    uow.session.delete(ei)
+                
+                for ing_id in data.ingrediente_ids:
+                    uow.session.add(ProductoIngrediente(producto_id=id, ingrediente_id=ing_id))
+            
+            # 4. Persisto todo
+            uow.productos.update(producto)
+            uow.commit()
+            
+        # Fuera del with para asegurarnos que la sesión se cerró y los cambios impactaron
+        return self.get_producto(id)
 
     def delete_producto(self, id: int):
         with ProductoUnitOfWork() as uow:
