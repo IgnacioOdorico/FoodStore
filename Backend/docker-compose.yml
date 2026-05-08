@@ -8,6 +8,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: tp3_productos
+      TZ: "America/Argentina/Buenos_Aires"
+      PGTZ: "America/Argentina/Buenos_Aires"
     ports:
       - "5432:5432"
     volumes:
