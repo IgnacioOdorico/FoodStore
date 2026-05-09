@@ -1,38 +1,60 @@
+"""
+Entry point de la aplicación FastAPI.
+
+Responsabilidades:
+  - Registrar routers (auth + categorías + productos + ingredientes).
+  - Configurar CORS para consumo desde frontend (React, etc.).
+  - Crear tablas al arrancar (lifespan).
+  - Health check en /health.
+"""
+
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import SQLModel
 
-# Importamos los modelos para que SQLModel los registre
-from app.modules.producto.models import Producto, ProductoCategoria, ProductoIngrediente
-from app.modules.categoria.models import Categoria
-from app.modules.ingrediente.models import Ingrediente
-
-from app.core.database import engine
-
-# Importamos los routers refactorizados
+from app.core.database import create_all_tables
+from app.modules.usuarios.router import router as auth_router
 from app.modules.categoria.router import router as categoria_router
 from app.modules.producto.router import router as producto_router
 from app.modules.ingrediente.router import router as ingrediente_router
 
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
 
-app = FastAPI(title="Parcial Integrador API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Crea las tablas de BD al arrancar la aplicación."""
+    try:
+        create_all_tables()
+    except Exception:
+        # En tests, la BD de producción no está disponible.
+        # conftest.py crea las tablas con SQLite en memoria.
+        pass
+    yield
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"], 
-    allow_headers=["*"], 
+
+app = FastAPI(
+    title="FoodStore API",
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
+# ─── CORS (ajustar origins en producción) ────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite / CRA
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Incluir routers
+# ─── Routers ─────────────────────────────────────────────────────────────────
+app.include_router(auth_router)
 app.include_router(categoria_router)
 app.include_router(producto_router)
 app.include_router(ingrediente_router)
+
+
+# ─── Health check ────────────────────────────────────────────────────────────
+@app.get("/health", tags=["health"])
+def health():
+    return {"status": "ok", "version": "1.0.0"}

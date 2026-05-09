@@ -1,39 +1,81 @@
-from typing import List, Annotated, Optional
-from fastapi import APIRouter, HTTPException, Query
-from app.modules.ingrediente.service import IngredienteService
+"""
+Router CRUD de Ingredientes.
+
+HTTP puro: parsear request, validar schema Pydantic, delegar al Service,
+serializar response con response_model. No contiene lógica de negocio.
+
+Capa: Router
+Conoce a: Service (vía UoW)
+NO conoce a: Repository, Model (solo esquemas para response_model)
+"""
+
+from typing import Annotated, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.core.uow import UnitOfWork, get_uow
 from app.modules.ingrediente.schemas import IngredienteCreate, IngredienteUpdate, IngredienteRead
+from app.modules.ingrediente.service import IngredienteService
 
 router = APIRouter(prefix="/ingredientes", tags=["Ingredientes"])
-service = IngredienteService()
+
 
 @router.get("/", response_model=List[IngredienteRead])
 def list_ingredientes(
     nombre: Annotated[Optional[str], Query(description="Filtrar por nombre")] = None,
-    es_alergeno: Annotated[Optional[bool], Query(description="Filtrar por alérgenos")] = None
+    es_alergeno: Annotated[Optional[bool], Query(description="Filtrar por alérgenos")] = None,
+    uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
 ):
-    return service.list_ingredientes(nombre=nombre, es_alergeno=es_alergeno)
+    with uow:
+        service = IngredienteService(uow)
+        return service.list_ingredientes(nombre=nombre, es_alergeno=es_alergeno)
+
 
 @router.post("/", response_model=IngredienteRead)
-def create_ingrediente(data: IngredienteCreate):
-    return service.create_ingrediente(data)
+def create_ingrediente(
+    data: IngredienteCreate,
+    uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
+):
+    with uow:
+        service = IngredienteService(uow)
+        return service.create_ingrediente(data)
+
 
 @router.get("/{id}", response_model=IngredienteRead)
-def get_ingrediente(id: int):
-    ingrediente = service.get_ingrediente(id)
+def get_ingrediente(
+    id: int,
+    uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
+):
+    with uow:
+        service = IngredienteService(uow)
+        ingrediente = service.get_ingrediente(id)
     if not ingrediente:
         raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
     return ingrediente
+
 
 @router.put("/{id}", response_model=IngredienteRead)
-def update_ingrediente(id: int, data: IngredienteUpdate):
-    ingrediente = service.update_ingrediente(id, data)
+def update_ingrediente(
+    id: int,
+    data: IngredienteUpdate,
+    uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
+):
+    with uow:
+        service = IngredienteService(uow)
+        ingrediente = service.update_ingrediente(id, data)
     if not ingrediente:
         raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
     return ingrediente
 
+
 @router.delete("/{id}")
-def delete_ingrediente(id: int):
-    success = service.delete_ingrediente(id)
+def delete_ingrediente(
+    id: int,
+    uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
+):
+    with uow:
+        service = IngredienteService(uow)
+        success = service.delete_ingrediente(id)
     if not success:
         raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
     return {"message": "Ingrediente eliminado"}
