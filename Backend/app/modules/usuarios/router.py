@@ -1,43 +1,32 @@
 """
 Router de autenticación y gestión de usuarios.
 
-HTTP puro: parsear request, validar schema Pydantic, delegar al Service,
-serializar response con response_model. No contiene lógica de negocio.
-
 Capa: Router
-Conoce a: Service (vía UoW)
-NO conoce a: Repository, Model (solo esquemas Pydantic para response_model)
-
-Regla de imports:
-    Router → Service → UoW → Repository → Model
+Adaptado al ERD v5.
 """
 
-from typing import Annotated
-
+from typing import Annotated, List
 from fastapi import APIRouter, Depends, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.uow import UnitOfWork, get_uow
 from app.core.deps import get_current_active_user, require_role
-from app.modules.usuarios.model import Usuario, UserCreate, UserPublic, Token
+from app.modules.usuarios.model import UserCreate, UserPublic, Token
 from app.modules.usuarios.service import UsuarioService
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
-
-# ─── Registro ─────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
 def register(
     user_in: UserCreate,
     uow: Annotated[UnitOfWork, Depends(get_uow)],
 ):
+    """Registra un nuevo usuario."""
     with uow:
         service = UsuarioService(uow)
         return service.register(user_in)
 
-
-# ─── Login (OAuth2 Password Flow) ────────────────────────────────────────────
 
 @router.post("/token")
 def login(
@@ -45,81 +34,60 @@ def login(
     uow: Annotated[UnitOfWork, Depends(get_uow)],
     response: Response,
 ):
+    """
+    Login estándar OAuth2. 
+    'username' en el formulario debe ser el email del usuario.
+    """
     with uow:
         service = UsuarioService(uow)
+        # El formulario de FastAPI usa el campo 'username' para el identificador
         token = service.authenticate(form_data.username, form_data.password)
         
-        # Configuramos la cookie HttpOnly
+        # Cookie HttpOnly para seguridad (XSS protection)
         response.set_cookie(
             key="access_token",
             value=token.access_token,
             httponly=True,
-            max_age=1800,  # 30 minutos, o el valor de expires_in
+            max_age=token.expires_in,
             samesite="lax",
-            secure=False,  # En producción con HTTPS debería ser True
+            secure=False, # True en producción con HTTPS
         )
-        return {"mensaje": "Login exitoso. Sesión iniciada."}
+        return {"mensaje": "Login exitoso", "user_email": form_data.username}
+
 
 @router.post("/logout")
 def logout(response: Response):
-    # Limpiar la cookie HttpOnly al cerrar sesión
-    response.delete_cookie(
-        key="access_token",
-        httponly=True,
-        samesite="lax",
-        secure=False,
-    )
-    return {"mensaje": "Sesión cerrada exitosamente"}
+    """Cierra la sesión eliminando la cookie."""
+    response.delete_cookie(key="access_token", httponly=True, samesite="lax")
+    return {"mensaje": "Sesión cerrada"}
 
-
-# ─── Rutas protegidas ────────────────────────────────────────────────────────
 
 @router.get("/me", response_model=UserPublic)
 def read_me(
-    current_user: Annotated[Usuario, Depends(get_current_active_user)],
+    current_user: Annotated[UserPublic, Depends(get_current_active_user)],
 ):
+    """Retorna el perfil del usuario autenticado."""
     return current_user
 
 
-@router.get("/privado")
-def ruta_privada(
-    current_user: Annotated[Usuario, Depends(get_current_active_user)],
-):
-    return {
-        "mensaje": f"¡Hola, {current_user.full_name}! Accediste a una ruta privada.",
-        "tu_rol": current_user.role,
-    }
-
-
-# ─── Rutas de administración (RBAC) ──────────────────────────────────────────
-
-@router.get("/admin/usuarios", response_model=list[UserPublic])
+@router.get("/admin/usuarios", response_model=List[UserPublic])
 def list_users(
-    _admin: Annotated[Usuario, Depends(require_role(["admin"]))],
+    _admin: Annotated[UserPublic, Depends(require_role(["ADMIN"]))],
     uow: Annotated[UnitOfWork, Depends(get_uow)],
 ):
+    """Lista todos los usuarios (Solo ADMIN)."""
     with uow:
         service = UsuarioService(uow)
         return service.list_all()
 
 
-@router.post("/admin/usuarios/{user_id}/desactivar", response_model=UserPublic)
-def deactivate_user(
+@router.delete("/admin/usuarios/{user_id}", response_model=UserPublic)
+def delete_user(
     user_id: int,
-    _admin: Annotated[Usuario, Depends(require_role(["admin"]))],
+    _admin: Annotated[UserPublic, Depends(require_role(["ADMIN"]))],
     uow: Annotated[UnitOfWork, Depends(get_uow)],
 ):
+    """Baja lógica de un usuario (Solo ADMIN)."""
     with uow:
         service = UsuarioService(uow)
-        return service.set_disabled(user_id, disabled=True)
-
-
-@router.post("/admin/usuarios/{user_id}/activar", response_model=UserPublic)
-def activate_user(
-    user_id: int,
-    _admin: Annotated[Usuario, Depends(require_role(["admin"]))],
-    uow: Annotated[UnitOfWork, Depends(get_uow)],
-):
-    with uow:
-        service = UsuarioService(uow)
-        return service.set_disabled(user_id, disabled=False)
+        return service.delete_user(user_id)

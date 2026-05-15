@@ -18,6 +18,7 @@ from app.modules.usuarios.router import router as auth_router
 from app.modules.categorias.router import router as categorias_router
 from app.modules.producto.router import router as producto_router
 from app.modules.ingrediente.router import router as ingrediente_router
+from app.modules.pedidos.router import router as pedidos_router
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ app.include_router(auth_router)
 app.include_router(categorias_router)
 app.include_router(producto_router)
 app.include_router(ingrediente_router)
+app.include_router(pedidos_router)
 
 
 # ─── Health check ────────────────────────────────────────────────────────────

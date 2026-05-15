@@ -21,6 +21,9 @@ def get_session():
 
 def create_all_tables() -> None:
     """Crea las tablas registradas en SQLModel.metadata al arrancar la app."""
-    import app.modules.usuarios.model     # noqa: F401 — registra el modelo en metadata
-    import app.modules.categorias.model   # noqa: F401
+    import app.modules.usuarios.model     
+    import app.modules.categorias.model   
+    import app.modules.producto.models    
+    import app.modules.ingrediente.models  
+    import app.modules.pedidos.models  
     SQLModel.metadata.create_all(engine)

@@ -6,8 +6,13 @@ con @computed_field para construir DATABASE_URL automáticamente.
 Los valores sensibles (SECRET_KEY, POSTGRES_PASSWORD) viven en .env.
 """
 
+from pathlib import Path
+
 from pydantic import computed_field
 from pydantic_settings import BaseSettings
+
+
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -46,7 +51,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     model_config = {
-        "env_file":          ".env",
+        "env_file":          BASE_DIR / ".env",
         "env_file_encoding": "utf-8",
         "extra":             "ignore",   # ignora vars extra del .env (ej. DATABASE_URL literal)
     }

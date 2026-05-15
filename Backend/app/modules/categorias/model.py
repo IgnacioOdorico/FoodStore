@@ -1,11 +1,11 @@
 """
 Modelo de Categoría — tabla 'categoria' en PostgreSQL.
 
-CRUD simple protegido por JWT.
-Cualquier usuario autenticado puede leer; crear/editar/borrar requiere auth.
+Adaptado al ERD v5:
+  - Soporte para categorías jerárquicas (padre_id).
 """
 
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
@@ -15,11 +15,21 @@ from app.modules.producto.associations import ProductoCategoria
 
 
 class Categoria(SQLModel, table=True):
-    id:          int | None = Field(default=None, primary_key=True)
-    nombre:      str        = Field(index=True, unique=True)
-    descripcion: str        = Field(default="")
-
-    # Relación con Producto (agregada para compatibilidad con FoodStore)
+    id:          Optional[int] = Field(default=None, primary_key=True)
+    nombre:      str           = Field(index=True, unique=True, max_length=50, nullable=False)
+    descripcion: Optional[str] = Field(default=None)
+    
+    # Jerarquía (Self-reference)
+    padre_id:    Optional[int] = Field(default=None, foreign_key="categoria.id")
+    
+    # Relaciones
+    padre:       Optional["Categoria"] = Relationship(
+        back_populates="subcategorias", 
+        sa_relationship_kwargs={"remote_side": "Categoria.id"}
+    )
+    subcategorias: List["Categoria"] = Relationship(back_populates="padre")
+    
+    # Relación N:N con Producto
     productos: List["Producto"] = Relationship(
         back_populates="categorias",
         link_model=ProductoCategoria
@@ -29,19 +39,20 @@ class Categoria(SQLModel, table=True):
 # ─── Esquemas Pydantic ───────────────────────────────────────────────────────
 
 class CategoriaCreate(SQLModel):
-    """Datos para crear una categoría."""
-    nombre:      str = Field(min_length=1, max_length=100)
-    descripcion: str = Field(default="", max_length=500)
+    nombre:      str = Field(min_length=1, max_length=50)
+    descripcion: Optional[str] = None
+    padre_id:    Optional[int] = None
 
 
 class CategoriaUpdate(SQLModel):
-    """Datos para actualizar (parcial — todos opcionales)."""
-    nombre:      str | None = Field(default=None, min_length=1, max_length=100)
-    descripcion: str | None = Field(default=None, max_length=500)
+    """Schema para PATCH: todos los campos son opcionales."""
+    nombre:      Optional[str] = Field(default=None, min_length=1, max_length=50)
+    descripcion: Optional[str] = None
+    padre_id:    Optional[int] = None
 
 
 class CategoriaPublic(SQLModel):
-    """Vista pública de la categoría."""
     id:          int
     nombre:      str
-    descripcion: str
+    descripcion: Optional[str]
+    padre_id:    Optional[int]

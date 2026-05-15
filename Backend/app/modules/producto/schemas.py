@@ -6,23 +6,26 @@ class ProductoBase(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
     precio_base: float
-    imagenes_url: List[str] = []
-    stock_cantidad: int = 0
+    imagen_url: Optional[str] = None
     disponible: bool = True
 
+class IngredienteConCantidad(BaseModel):
+    id: int
+    cantidad: float
+    es_removible: bool = False
+
 class ProductoCreate(ProductoBase):
-    categoria_ids: List[int] = Field(..., min_length=1, description="Debe pertenecer a al menos una categoría")
-    ingrediente_ids: List[int] = []
+    categoria_ids: List[int] = Field(..., min_length=1)
+    ingredientes_receta: List[IngredienteConCantidad] = []
 
 class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
     descripcion: Optional[str] = None
     precio_base: Optional[float] = None
-    imagenes_url: Optional[List[str]] = None
-    stock_cantidad: Optional[int] = None
+    imagen_url: Optional[str] = None
     disponible: Optional[bool] = None
-    categoria_ids: Optional[List[int]] = Field(None, min_length=1)
-    ingrediente_ids: Optional[List[int]] = None
+    categoria_ids: Optional[List[int]] = None
+    ingredientes_receta: Optional[List[IngredienteConCantidad]] = None
 
 class ProductoRead(ProductoBase):
     id: int
@@ -40,6 +43,7 @@ class CategoriaConExtra(CategoriaRead):
     es_principal: bool = False
 
 class IngredienteConExtra(IngredienteRead):
+    cantidad: float = 0.0
     es_removible: bool = False
 
 class ProductoReadWithDetails(ProductoRead):

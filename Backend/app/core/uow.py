@@ -18,10 +18,11 @@ Uso en Service:
 from sqlmodel import Session
 
 from app.core.database import engine
-from app.modules.usuarios.repository import UsuarioRepository
+from app.modules.usuarios.repository import UsuarioRepository, RolRepository, UsuarioRolRepository
 from app.modules.categorias.repository import CategoriaRepository
 from app.modules.producto.repository import ProductoRepository
 from app.modules.ingrediente.repository import IngredienteRepository
+from app.modules.pedidos.repository import PedidoRepository, DetallePedidoRepository
 
 
 class UnitOfWork:
@@ -41,9 +42,13 @@ class UnitOfWork:
     def __enter__(self):
         self.session = Session(engine)
         self.usuarios = UsuarioRepository(self.session)
+        self.roles = RolRepository(self.session)
+        self.usuarios_roles = UsuarioRolRepository(self.session)
         self.categorias = CategoriaRepository(self.session)
         self.productos = ProductoRepository(self.session)
         self.ingredientes = IngredienteRepository(self.session)
+        self.pedidos = PedidoRepository(self.session)
+        self.detalles_pedidos = DetallePedidoRepository(self.session)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

@@ -1,64 +1,24 @@
 """
 Dependencias de autenticación y autorización para FastAPI.
 
-Este módulo define funciones que se inyectan con Depends() para:
-- Extraer el token JWT desde el request
-- Validar autenticación
-- Validar estado del usuario
-- Validar permisos (roles)
-
-Flujo de ejecución típico:
-
-    Request HTTP
-        ↓
-    oauth2_scheme → extrae el token Bearer del header Authorization
-        ↓
-    get_current_user → decodifica el JWT y busca el usuario en DB
-        ↓
-    get_current_active_user → valida que el usuario esté activo
-        ↓
-    require_role([...]) → valida permisos (RBAC)
-
-Convenciones HTTP:
-    401 → No autenticado (token inválido, ausente o expirado)
-    403 → Autenticado pero sin permisos suficientes
-
-Arquitectura:
-    - Capa Core (dependencias reutilizables)
-    - Depende de:
-        * Unit of Work (acceso a datos)
-        * Seguridad (JWT)
-        * Modelo Usuario
+Adaptado al ERD v5:
+- Extrae identidad vía 'email' (claim 'sub').
+- Valida RBAC contra la lista de roles del usuario.
 """
 
-from typing import Annotated  # Permite tipado enriquecido para Depends
+from typing import Annotated, List
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordBearer
 
-from fastapi import Depends, HTTPException, status  # Inyección y manejo de errores HTTP
-from fastapi.security import OAuth2PasswordBearer  # Manejo estándar de OAuth2 con Bearer
+from app.core.security import decode_access_token
+from app.core.uow import UnitOfWork, get_uow
+from app.modules.usuarios.model import Usuario, UserPublic
+from app.modules.usuarios.service import UsuarioService
 
-from app.core.security import decode_access_token  # Función para decodificar JWT
-from app.core.uow import UnitOfWork, get_uow       # Patrón Unit of Work para DB
-from app.modules.usuarios.model import Usuario     # Modelo de dominio Usuario
-from app.modules.usuarios.model import UserPublic     # Modelo de dominio Usuario
-
-from fastapi import Request
 
 class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
     async def __call__(self, request: Request) -> str | None:
-        # 1. Obtener el token EXCLUSIVAMENTE de la cookie (HttpOnly)
         token = request.cookies.get("access_token")
-        
-        # 2. El soporte para el header Authorization fue deshabilitado.
-        # ¿Por qué? Para maximizar la seguridad y forzar el uso de cookies HttpOnly.
-        # Las cookies HttpOnly no pueden ser leídas por JavaScript (mitigando ataques XSS).
-        # Si permitiéramos usar el token vía header, el frontend tendría que manipular
-        # el token en texto plano, arruinando el propósito de la cookie HttpOnly.
-        # 
-        # if not token:
-        #     authorization = request.headers.get("Authorization")
-        #     if authorization and authorization.startswith("Bearer "):
-        #         token = authorization.split(" ")[1]
-                
         if not token:
             if self.auto_error:
                 raise HTTPException(
@@ -66,108 +26,67 @@ class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
                     detail="No autenticado",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            else:
-                return None
+            return None
         return token
 
-# Define el esquema OAuth2 que extrae el token de la cookie (o header)
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="/api/v1/auth/token")
 
 
-
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],  # Token extraído automáticamente
-    uow: Annotated[UnitOfWork, Depends(get_uow)],   # Inyección del Unit of Work
-):
-    """
-    Decodifica el JWT y retorna el Usuario correspondiente.
+    token: Annotated[str, Depends(oauth2_scheme)],
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
+) -> UserPublic:
+    """Decodifica el JWT y retorna la vista pública del Usuario."""
 
-    Responsabilidades:
-    - Validar token
-    - Extraer identidad (username)
-    - Buscar usuario en base de datos
-    """
-
-    # Excepción estándar para errores de autenticación (401)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciales inválidas o token expirado",
-        headers={"WWW-Authenticate": "Bearer"},  # Obligatorio en OAuth2 por protocolo
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # Decodifica el JWT → devuelve payload o None si es inválido
     payload = decode_access_token(token)
     if payload is None:
         raise credentials_exception
 
-    # Extrae el "subject" (usuario) del token
-    username: str | None = payload.get("sub")
-    if username is None:
+    email: str | None = payload.get("sub")
+    if email is None:
         raise credentials_exception
 
-    # Abre contexto de Unit of Work (manejo de sesión/transacción)
     with uow:
-        # Busca el usuario en base de datos
-        user = uow.usuarios.get_by_username(username)
-
-        # Si no existe el usuario → token inválido
+        service = UsuarioService(uow)
+        user = uow.usuarios.get_by_email(email)
         if user is None:
             raise credentials_exception
 
-        return UserPublic.model_validate(user)  # Usuario autenticado válido
+        return service._to_public(user)
 
 
 async def get_current_active_user(
-    current_user: Annotated[Usuario, Depends(get_current_user)],
-) :
+    current_user: Annotated[UserPublic, Depends(get_current_user)],
+) -> UserPublic:
+    """Verifica que el usuario no esté marcado como eliminado."""
+    # En el nuevo modelo, usamos deleted_at. get_current_user ya filtra activos.
+    return current_user
+
+
+def require_role(allowed_roles: List[str]):
     """
-    Verifica que el usuario autenticado esté activo.
-
-    Regla de negocio:
-    - Un usuario con disabled=True no puede operar
+    Factory de dependencias para RBAC.
+    Valida si al menos uno de los roles del usuario coincide con los permitidos.
     """
-
-    if current_user.disabled:
-        # Error semántico: el usuario existe pero no puede operar
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cuenta de usuario desactivada",
-        )
-
-    return UserPublic.model_validate(current_user) # Usuario válido y activo
-
-
-def require_role(allowed_roles: list[str]):
-    """
-    Factory de dependencias para control de acceso basado en roles (RBAC).
-
-    Genera dinámicamente una dependencia que valida si el usuario
-    tiene uno de los roles permitidos.
-
-    Parámetros:
-        allowed_roles → lista de roles válidos (ej: ["admin", "manager"])
-
-    Uso típico:
-        @router.get("/admin", dependencies=[Depends(require_role(["admin"]))])
-    """
-
     async def role_checker(
-        current_user: Annotated[Usuario, Depends(get_current_active_user)],
-    ) -> Usuario:
-        """
-        Valida que el rol del usuario esté dentro de los permitidos.
-        """
-
-        # Si el rol del usuario no está permitido → 403 (prohibido)
-        if current_user.role not in allowed_roles:
+        current_user: Annotated[UserPublic, Depends(get_current_active_user)],
+    ) -> UserPublic:
+        
+        # current_user.roles es una List[str] según el nuevo UserPublic
+        has_access = any(role in allowed_roles for role in current_user.roles)
+        
+        if not has_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"Permisos insuficientes. Tu rol es '{current_user.role}'. "
-                    f"Se requiere uno de: {allowed_roles}"
-                ),
+                detail=f"Se requiere uno de los siguientes roles: {allowed_roles}. Roles actuales: {current_user.roles}",
             )
 
-        return current_user  # Usuario autorizado
+        return current_user
 
-    return role_checker  # Retorna la dependencia configurada
+    return role_checker

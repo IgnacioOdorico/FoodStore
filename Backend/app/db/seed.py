@@ -1,70 +1,85 @@
 """
-Script de seed — carga usuarios iniciales para pruebas.
+Script de seed — carga roles y usuarios iniciales según ERD v5.
 Idempotente: se puede ejecutar múltiples veces sin duplicar datos.
 
 Uso:
     python -m app.db.seed
-
-Requiere PostgreSQL corriendo con las variables de .env configuradas.
-
-Crea:
-  - admin / Admin1234!  (role=admin)
-  - juan / Juan1234!    (role=user)
 """
 
 from sqlmodel import Session, select
 from app.core.database import engine, create_all_tables
 from app.core.security import hash_password
-from app.modules.usuarios.model import Usuario
+from app.modules.usuarios.model import Usuario, Rol, UsuarioRol
 
+
+ROLES_INICIALES = [
+    {"codigo": "ADMIN",   "nombre": "Administrador", "descripcion": "Acceso total al sistema"},
+    {"codigo": "STOCK",   "nombre": "Gestor de Stock", "descripcion": "Gestión de productos e ingredientes"},
+    {"codigo": "PEDIDOS", "nombre": "Gestor de Pedidos", "descripcion": "Gestión de ventas y comandas"},
+    {"codigo": "CLIENT",  "nombre": "Cliente", "descripcion": "Usuario final de la app"},
+]
 
 USUARIOS_INICIALES = [
     {
-        "username":  "admin",
-        "full_name": "Administrador del Sistema",
-        "email":     "admin@example.com",
-        "password":  "Admin1234!",
-        "role":      "admin",
+        "nombre":   "Nacho",
+        "apellido": "Admin",
+        "email":    "admin@nachopizza.com",
+        "password": "Admin1234!",
+        "roles":    ["ADMIN"],
     },
     {
-        "username":  "juan",
-        "full_name": "Juan Pérez",
-        "email":     "juan@example.com",
-        "password":  "Juan1234!",
-        "role":      "user",
+        "nombre":   "Juan",
+        "apellido": "Cliente",
+        "email":    "juan@ejemplo.com",
+        "password": "Juan1234!",
+        "roles":    ["CLIENT"],
     },
 ]
 
 
 def run() -> None:
-    print("=== Seed — Seguridad JWT (PostgreSQL) ===")
+    print("=== Seed — FoodStore (ERD v5 Compliance) ===")
     create_all_tables()
 
     with Session(engine) as session:
-        for data in USUARIOS_INICIALES:
-            existing = session.exec(
-                select(Usuario).where(Usuario.username == data["username"])
-            ).first()
+        # 1. Cargar Roles
+        for r_data in ROLES_INICIALES:
+            existing_rol = session.exec(select(Rol).where(Rol.codigo == r_data["codigo"])).first()
+            if not existing_rol:
+                rol = Rol(**r_data)
+                session.add(rol)
+                print(f"  [+] Rol creado: {r_data['codigo']}")
+        
+        session.commit()
 
-            if existing:
-                print(f"  [=] Ya existe: {data['username']} ({data['role']})")
-            else:
-                usuario = Usuario(
-                    username        = data["username"],
-                    full_name       = data["full_name"],
-                    email           = data["email"],
-                    hashed_password = hash_password(data["password"]),
-                    role            = data["role"],
-                )
-                session.add(usuario)
-                print(f"  [+] Creado:    {data['username']} / {data['password']}  (role={data['role']})")
+        # 2. Cargar Usuarios
+        for u_data in USUARIOS_INICIALES:
+            existing_user = session.exec(select(Usuario).where(Usuario.email == u_data["email"])).first()
+            
+            if existing_user:
+                print(f"  [=] Usuario ya existe: {u_data['email']}")
+                continue
+
+            # Crear Usuario
+            usuario = Usuario(
+                nombre=u_data["nombre"],
+                apellido=u_data["apellido"],
+                email=u_data["email"],
+                password_hash=hash_password(u_data["password"]),
+            )
+            session.add(usuario)
+            session.flush() # Para obtener el ID del usuario
+
+            # Asignar Roles
+            for r_code in u_data["roles"]:
+                u_rol = UsuarioRol(usuario_id=usuario.id, rol_codigo=r_code)
+                session.add(u_rol)
+            
+            print(f"  [+] Usuario creado: {u_data['email']} con roles {u_data['roles']}")
 
         session.commit()
 
-    print("\nUsuarios disponibles para pruebas:")
-    print("  admin / Admin1234!  → role=admin  (acceso total)")
-    print("  juan  / Juan1234!   → role=user   (acceso básico)")
-    print()
+    print("\nSeed finalizado con éxito.")
 
 
 if __name__ == "__main__":
