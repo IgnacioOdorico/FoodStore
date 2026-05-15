@@ -6,7 +6,7 @@ from datetime import datetime
 # Esto lo uso para evitar importaciones circulares. 
 # Solo se importa para que el tipado funcione, pero no en tiempo de ejecución.
 if TYPE_CHECKING:
-    from app.modules.categoria.models import Categoria
+    from app.modules.categorias.model import Categoria
     from app.modules.ingrediente.models import Ingrediente
 
 # ACÁ DEFINO LAS TABLAS INTERMEDIAS PARA LAS RELACIONES MUCHOS A MUCHOS (N:N)

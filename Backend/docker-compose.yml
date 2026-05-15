@@ -6,8 +6,8 @@ services:
     container_name: tp3_postgres_db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: tp3_productos
+      POSTGRES_PASSWORD: 1941
+      POSTGRES_DB: seguridad_jwt_db
     ports:
       - "5432:5432"
     volumes:

@@ -11,9 +11,11 @@ NO conoce a: Repository, Model (solo esquemas para response_model)
 
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.uow import UnitOfWork, get_uow
+from app.core.deps import get_current_active_user
+from app.modules.usuarios.model import Usuario
 from app.modules.ingrediente.schemas import IngredienteCreate, IngredienteUpdate, IngredienteRead
 from app.modules.ingrediente.service import IngredienteService
 
@@ -24,6 +26,7 @@ router = APIRouter(prefix="/ingredientes", tags=["Ingredientes"])
 def list_ingredientes(
     nombre: Annotated[Optional[str], Query(description="Filtrar por nombre")] = None,
     es_alergeno: Annotated[Optional[bool], Query(description="Filtrar por alérgenos")] = None,
+    _user: Annotated[Usuario, Depends(get_current_active_user)] = None,
     uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
 ):
     with uow:
@@ -34,6 +37,7 @@ def list_ingredientes(
 @router.post("/", response_model=IngredienteRead)
 def create_ingrediente(
     data: IngredienteCreate,
+    _user: Annotated[Usuario, Depends(get_current_active_user)] = None,
     uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
 ):
     with uow:
@@ -44,6 +48,7 @@ def create_ingrediente(
 @router.get("/{id}", response_model=IngredienteRead)
 def get_ingrediente(
     id: int,
+    _user: Annotated[Usuario, Depends(get_current_active_user)] = None,
     uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
 ):
     with uow:
@@ -58,6 +63,7 @@ def get_ingrediente(
 def update_ingrediente(
     id: int,
     data: IngredienteUpdate,
+    _user: Annotated[Usuario, Depends(get_current_active_user)] = None,
     uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
 ):
     with uow:
@@ -71,6 +77,7 @@ def update_ingrediente(
 @router.delete("/{id}")
 def delete_ingrediente(
     id: int,
+    _user: Annotated[Usuario, Depends(get_current_active_user)] = None,
     uow: Annotated[UnitOfWork, Depends(get_uow)] = None,
 ):
     with uow:

@@ -1,0 +1,402 @@
+# =============================================================================
+# CRUD Categorías + Auth — REST Client
+# Flujo completo: Registro → Login → CRUD Categorías protegido por JWT
+# =============================================================================
+#
+# Plugin requerido: REST Client (Huachao Mao)
+#   Instalar: Ctrl+Shift+P → "ext install humao.rest-client"
+#
+# Setup previo:
+#   1. uvicorn app.main:app --reload
+#   2. (opcional) python -m app.db.seed   ← si querés admin
+#
+# Flujo de uso:
+#   → Ejecutar bloques en orden (0 → 1 → 2 → 3 → 4 → 5 → 6)
+#   → Después del bloque 2: copiar token a @token
+#   → Los bloques 3-6 usan esa variable automáticamente
+#
+# Convención de comentarios:
+#   ✅ = respuesta exitosa esperada
+#   ❌ = error esperado (el comportamiento correcto ES ese error)
+# =============================================================================
+
+# ─── Variables globales ───────────────────────────────────────────────────────
+@baseUrl      = http://localhost:8000
+@authApi      = {{baseUrl}}/api/v1/auth
+@categoriasApi = {{baseUrl}}/api/v1/categorias
+
+# Completar después de ejecutar el bloque 2:
+@token = PEGAR_TOKEN_AQUI
+
+
+# =============================================================================
+# BLOQUE 0 — Verificación inicial
+# =============================================================================
+
+### 0. Health check — API corriendo
+# ✅ HTTP 200  { "status": "ok", "version": "1.0.0" }
+GET {{baseUrl}}/health
+Accept: application/json
+
+
+# =============================================================================
+# BLOQUE 1 — Registro de usuario para pruebas
+# =============================================================================
+
+### 1a. Registrar usuario de prueba
+# ✅ HTTP 201 Created
+# {
+#   "id": 1, "username": "testuser", "full_name": "Test User",
+#   "email": "test@example.com", "role": "user", "disabled": false
+# }
+POST {{authApi}}/register
+Content-Type: application/json
+
+{
+  "username":  "testuser",
+  "full_name": "Test User",
+  "email":     "test@example.com",
+  "password":  "TestPass123!"
+}
+
+###
+
+### 1b. ❌ Intentar registrar mismo usuario → 409
+# ❌ HTTP 409 Conflict  { "detail": "El nombre de usuario ya está en uso" }
+POST {{authApi}}/register
+Content-Type: application/json
+
+{
+  "username":  "testuser",
+  "full_name": "Otro User",
+  "email":     "otro@example.com",
+  "password":  "OtroPass123!"
+}
+
+
+# =============================================================================
+# BLOQUE 2 — Login → obtener JWT
+#
+# ⚠️  IMPORTANTE: Después de ejecutar este request, copiar el valor
+#     de "access_token" de la respuesta y pegarlo en @token (línea 30)
+# =============================================================================
+
+### 2. Login  ← copiar access_token a @token
+# ✅ HTTP 200
+# {
+#   "access_token": "eyJhbGci...",  ← COPIAR ESTE VALOR
+#   "token_type": "bearer",
+#   "expires_in": 1800
+# }
+POST {{authApi}}/token
+Content-Type: application/x-www-form-urlencoded
+
+username=testuser&password=TestPass123!
+
+
+# =============================================================================
+# BLOQUE 3 — Verificar autenticación antes de usar categorías
+# =============================================================================
+
+### 3a. ✅ Verificar que el token funciona con /me
+# ✅ HTTP 200  { "id": ..., "username": "testuser", "role": "user", ... }
+GET {{authApi}}/me
+Authorization: Bearer {{token}}
+
+###
+
+### 3b. ❌ Categorías sin token → 401
+# ❌ HTTP 401  { "detail": "Not authenticated" }
+# Demuestra que el CRUD está protegido por JWT.
+GET {{categoriasApi}}/
+Accept: application/json
+
+
+# =============================================================================
+# BLOQUE 4 — CREATE: Crear categorías
+#
+# POST /api/v1/categorias/
+# Requiere JWT. Nombre debe ser único.
+# =============================================================================
+
+### 4a. ✅ Crear categoría "Electrónica"
+# ✅ HTTP 201 Created
+# { "id": 1, "nombre": "Electrónica", "descripcion": "Dispositivos y gadgets" }
+POST {{categoriasApi}}/
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Electrónica",
+  "descripcion": "Dispositivos y gadgets"
+}
+
+###
+
+### 4b. ✅ Crear categoría "Ropa"
+# ✅ HTTP 201 Created
+# { "id": 2, "nombre": "Ropa", "descripcion": "Indumentaria y accesorios" }
+POST {{categoriasApi}}/
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Ropa",
+  "descripcion": "Indumentaria y accesorios"
+}
+
+###
+
+### 4c. ✅ Crear categoría "Hogar"
+# ✅ HTTP 201 Created
+# { "id": 3, "nombre": "Hogar", "descripcion": "" }
+# NOTAR: descripcion es opcional — si no se envía, queda como string vacío.
+POST {{categoriasApi}}/
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Hogar"
+}
+
+###
+
+### 4d. ✅ Crear categoría "Deportes"
+# ✅ HTTP 201 Created
+POST {{categoriasApi}}/
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Deportes",
+  "descripcion": "Artículos deportivos y fitness"
+}
+
+###
+
+### 4e. ❌ Nombre duplicado → 409 Conflict
+# ❌ HTTP 409  { "detail": "Ya existe una categoría con ese nombre" }
+POST {{categoriasApi}}/
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Electrónica",
+  "descripcion": "Otra electrónica"
+}
+
+###
+
+### 4f. ❌ Nombre vacío → 422 Unprocessable Entity
+# ❌ HTTP 422  (validación Pydantic — min_length=1)
+POST {{categoriasApi}}/
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "",
+  "descripcion": "Sin nombre"
+}
+
+###
+
+### 4g. ❌ Crear sin autenticación → 401
+# ❌ HTTP 401  { "detail": "Not authenticated" }
+POST {{categoriasApi}}/
+Content-Type: application/json
+
+{
+  "nombre": "Sin Auth",
+  "descripcion": "No debería crearse"
+}
+
+
+# =============================================================================
+# BLOQUE 5 — READ: Listar y obtener categorías
+#
+# GET /api/v1/categorias/       — listar todas
+# GET /api/v1/categorias/{id}   — obtener una
+# =============================================================================
+
+### 5a. ✅ Listar todas las categorías
+# ✅ HTTP 200
+# [
+#   { "id": 1, "nombre": "Electrónica", "descripcion": "Dispositivos y gadgets" },
+#   { "id": 2, "nombre": "Ropa", "descripcion": "Indumentaria y accesorios" },
+#   { "id": 3, "nombre": "Hogar", "descripcion": "" },
+#   { "id": 4, "nombre": "Deportes", "descripcion": "Artículos deportivos y fitness" }
+# ]
+GET {{categoriasApi}}/
+Authorization: Bearer {{token}}
+
+###
+
+### 5b. ✅ Obtener categoría por ID (ajustar ID según 5a)
+# ✅ HTTP 200
+# { "id": 1, "nombre": "Electrónica", "descripcion": "Dispositivos y gadgets" }
+GET {{categoriasApi}}/1
+Authorization: Bearer {{token}}
+
+###
+
+### 5c. ❌ ID inexistente → 404
+# ❌ HTTP 404  { "detail": "Categoría no encontrada" }
+GET {{categoriasApi}}/999
+Authorization: Bearer {{token}}
+
+###
+
+### 5d. ❌ Listar sin token → 401
+# ❌ HTTP 401  { "detail": "Not authenticated" }
+GET {{categoriasApi}}/
+
+
+# =============================================================================
+# BLOQUE 6 — UPDATE: Actualizar categorías (PATCH parcial)
+#
+# PATCH /api/v1/categorias/{id}
+# Solo se envían los campos que se quieren cambiar.
+# =============================================================================
+
+### 6a. ✅ Actualizar solo el nombre
+# ✅ HTTP 200
+# { "id": 3, "nombre": "Hogar y Jardín", "descripcion": "" }
+# NOTAR: descripcion no se envió → queda igual (PATCH parcial).
+PATCH {{categoriasApi}}/3
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Hogar y Jardín"
+}
+
+###
+
+### 6b. ✅ Actualizar solo la descripción
+# ✅ HTTP 200
+# { "id": 1, "nombre": "Electrónica", "descripcion": "Celulares, tablets, notebooks y más" }
+PATCH {{categoriasApi}}/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "descripcion": "Celulares, tablets, notebooks y más"
+}
+
+###
+
+### 6c. ✅ Actualizar ambos campos
+# ✅ HTTP 200
+# { "id": 2, "nombre": "Moda", "descripcion": "Ropa, calzado y accesorios" }
+PATCH {{categoriasApi}}/2
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Moda",
+  "descripcion": "Ropa, calzado y accesorios"
+}
+
+###
+
+### 6d. ❌ Actualizar a nombre que ya existe → 409
+# ❌ HTTP 409  { "detail": "Ya existe una categoría con ese nombre" }
+# Intentar renombrar "Deportes" a "Moda" (que ya existe por 6c).
+PATCH {{categoriasApi}}/4
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Moda"
+}
+
+###
+
+### 6e. ❌ Actualizar ID inexistente → 404
+# ❌ HTTP 404  { "detail": "Categoría no encontrada" }
+PATCH {{categoriasApi}}/999
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nombre": "Fantasma"
+}
+
+###
+
+### 6f. ❌ Actualizar sin token → 401
+# ❌ HTTP 401
+PATCH {{categoriasApi}}/1
+Content-Type: application/json
+
+{
+  "nombre": "Sin Auth"
+}
+
+
+# =============================================================================
+# BLOQUE 7 — DELETE: Eliminar categorías
+#
+# DELETE /api/v1/categorias/{id}
+# Retorna 204 No Content (sin body).
+# =============================================================================
+
+### 7a. ✅ Eliminar categoría "Deportes" (ID 4)
+# ✅ HTTP 204 No Content  (sin body en la respuesta)
+DELETE {{categoriasApi}}/4
+Authorization: Bearer {{token}}
+
+###
+
+### 7b. ❌ Intentar eliminar la misma categoría de nuevo → 404
+# ❌ HTTP 404  { "detail": "Categoría no encontrada" }
+# Ya fue eliminada en 7a — confirma que no existe más.
+DELETE {{categoriasApi}}/4
+Authorization: Bearer {{token}}
+
+###
+
+### 7c. ❌ Eliminar ID inexistente → 404
+# ❌ HTTP 404
+DELETE {{categoriasApi}}/999
+Authorization: Bearer {{token}}
+
+###
+
+### 7d. ❌ Eliminar sin token → 401
+# ❌ HTTP 401
+DELETE {{categoriasApi}}/1
+
+###
+
+### 7e. ✅ Verificar estado final — listar lo que queda
+# ✅ HTTP 200
+# Deberían quedar 3 categorías:
+#   - Electrónica (actualizada en 6b)
+#   - Moda (renombrada en 6c, antes "Ropa")
+#   - Hogar y Jardín (renombrada en 6a, antes "Hogar")
+# "Deportes" fue eliminada en 7a.
+GET {{categoriasApi}}/
+Authorization: Bearer {{token}}
+
+
+# =============================================================================
+# RESUMEN — Tabla de endpoints de Categorías
+# =============================================================================
+#
+# Método  | Endpoint                     | Sin token | Con token
+# --------|------------------------------|-----------|----------
+# GET     | /api/v1/categorias/          | 401       | 200
+# GET     | /api/v1/categorias/{id}      | 401       | 200 / 404
+# POST    | /api/v1/categorias/          | 401       | 201 / 409 / 422
+# PATCH   | /api/v1/categorias/{id}      | 401       | 200 / 404 / 409
+# DELETE  | /api/v1/categorias/{id}      | 401       | 204 / 404
+#
+# Códigos de estado:
+#   200 OK                 — lectura / actualización exitosa
+#   201 Created            — categoría creada
+#   204 No Content         — categoría eliminada (sin body)
+#   401 Unauthorized       — sin token o token inválido
+#   404 Not Found          — categoría no existe
+#   409 Conflict           — nombre duplicado
+#   422 Unprocessable Entity — validación fallida (Pydantic)

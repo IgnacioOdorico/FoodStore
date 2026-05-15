@@ -2,7 +2,7 @@
 Entry point de la aplicación FastAPI.
 
 Responsabilidades:
-  - Registrar routers (auth + categorías + productos + ingredientes).
+  - Registrar routers (auth + categorías).
   - Configurar CORS para consumo desde frontend (React, etc.).
   - Crear tablas al arrancar (lifespan).
   - Health check en /health.
@@ -16,8 +16,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import create_all_tables
 from app.modules.usuarios.router import router as auth_router
 from app.modules.categorias.router import router as categorias_router
-from app.modules.producto.router import router as producto_router
-from app.modules.ingrediente.router import router as ingrediente_router
 
 
 @asynccontextmanager
@@ -33,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="FoodStore API",
+    title="Seguridad JWT + CRUD Categorías",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -50,8 +48,6 @@ app.add_middleware(
 # ─── Routers ─────────────────────────────────────────────────────────────────
 app.include_router(auth_router)
 app.include_router(categorias_router)
-app.include_router(producto_router)
-app.include_router(ingrediente_router)
 
 
 # ─── Health check ────────────────────────────────────────────────────────────

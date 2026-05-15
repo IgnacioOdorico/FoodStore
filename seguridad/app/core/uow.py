@@ -20,8 +20,6 @@ from sqlmodel import Session
 from app.core.database import engine
 from app.modules.usuarios.repository import UsuarioRepository
 from app.modules.categorias.repository import CategoriaRepository
-from app.modules.producto.repository import ProductoRepository
-from app.modules.ingrediente.repository import IngredienteRepository
 
 
 class UnitOfWork:
@@ -29,10 +27,8 @@ class UnitOfWork:
     Context manager que encapsula una transacción de BD.
 
     Atributos:
-        usuarios:     UsuarioRepository
-        categorias:   CategoriaRepository
-        productos:    ProductoRepository
-        ingredientes: IngredienteRepository
+        usuarios:    UsuarioRepository
+        categorias:  CategoriaRepository
     """
 
     def __init__(self):
@@ -42,8 +38,6 @@ class UnitOfWork:
         self.session = Session(engine)
         self.usuarios = UsuarioRepository(self.session)
         self.categorias = CategoriaRepository(self.session)
-        self.productos = ProductoRepository(self.session)
-        self.ingredientes = IngredienteRepository(self.session)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

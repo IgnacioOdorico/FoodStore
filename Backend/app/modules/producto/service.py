@@ -38,11 +38,8 @@ class ProductoService:
             statement = statement.where(Producto.disponible == disponible)
 
         if categoria_id:
-            from app.modules.categoria.service import CategoriaService
-            cat_service = CategoriaService(self.uow)
-            relevant_ids = cat_service.get_descendant_ids(categoria_id)
             statement = statement.join(ProductoCategoria).where(
-                ProductoCategoria.categoria_id.in_(relevant_ids)
+                ProductoCategoria.categoria_id == categoria_id
             )
             statement = statement.distinct()
 

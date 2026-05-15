@@ -33,7 +33,7 @@ class ProductoRead(ProductoBase):
     model_config = ConfigDict(from_attributes=True)
 
 # Schemas para las relaciones N:N con datos extra
-from app.modules.categoria.schemas import CategoriaRead
+from app.modules.categorias.model import CategoriaPublic as CategoriaRead
 from app.modules.ingrediente.schemas import IngredienteRead
 
 class CategoriaConExtra(CategoriaRead):
