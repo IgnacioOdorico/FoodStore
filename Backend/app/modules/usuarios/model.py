@@ -33,7 +33,10 @@ class UsuarioRol(SQLModel, table=True):
     created_at:      datetime  = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relaciones
-    usuario: "Usuario" = Relationship(back_populates="roles_link")
+    usuario: "Usuario" = Relationship(
+        back_populates="roles_link",
+        sa_relationship_kwargs={"foreign_keys": "[UsuarioRol.usuario_id]"}
+    )
     rol:     "Rol"     = Relationship(back_populates="usuarios_link")
 
 
@@ -90,7 +93,10 @@ class Usuario(SQLModel, table=True):
     deleted_at:    Optional[datetime] = Field(default=None)
 
     # Relaciones
-    roles_link:     List[UsuarioRol] = Relationship(back_populates="usuario")
+    roles_link:     List[UsuarioRol] = Relationship(
+        back_populates="usuario",
+        sa_relationship_kwargs={"foreign_keys": "[UsuarioRol.usuario_id]"}
+    )
     refresh_tokens: List[RefreshToken] = Relationship(back_populates="usuario")
     pedidos:        List["Pedido"] = Relationship(back_populates="usuario")
 
