@@ -9,21 +9,8 @@ if TYPE_CHECKING:
     from app.modules.categorias.model import Categoria
     from app.modules.ingrediente.models import Ingrediente
 
-# ACÁ DEFINO LAS TABLAS INTERMEDIAS PARA LAS RELACIONES MUCHOS A MUCHOS (N:N)
-# Pongo esto acá porque un producto puede tener muchas categorías y viceversa.
-class ProductoCategoria(SQLModel, table=True):
-    producto_id: int = Field(foreign_key="producto.id", primary_key=True)
-    categoria_id: int = Field(foreign_key="categoria.id", primary_key=True)
-    # Le agregué 'es_principal' por si quiero destacar una categoría sobre otra
-    es_principal: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.now)
+from app.modules.producto.associations import ProductoCategoria, ProductoIngrediente
 
-# Lo mismo acá: un producto (pizza) tiene muchos ingredientes, y un ingrediente (queso) está en muchos productos.
-class ProductoIngrediente(SQLModel, table=True):
-    producto_id: int = Field(foreign_key="producto.id", primary_key=True)
-    ingrediente_id: int = Field(foreign_key="ingrediente.id", primary_key=True)
-    # Puse 'es_removible' porque en una pizza podés sacar las aceitunas pero no la masa.
-    es_removible: bool = Field(default=False)
 
 # Uso una clase Base para no repetir los campos en el modelo de creación y el de la tabla real.
 class ProductoBase(SQLModel):

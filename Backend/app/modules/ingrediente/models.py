@@ -4,7 +4,7 @@ from datetime import datetime
 
 if TYPE_CHECKING:
     from app.modules.producto.models import Producto
-from app.modules.producto.models import ProductoIngrediente
+from app.modules.producto.associations import ProductoIngrediente
 
 class Ingrediente(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
