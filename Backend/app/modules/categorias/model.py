@@ -41,18 +41,18 @@ class Categoria(SQLModel, table=True):
 class CategoriaCreate(SQLModel):
     nombre:      str = Field(min_length=1, max_length=50)
     descripcion: Optional[str] = None
-    padre_id:    Optional[int] = None
+    parent_id:    Optional[int] = None
 
 
 class CategoriaUpdate(SQLModel):
     """Schema para PATCH: todos los campos son opcionales."""
     nombre:      Optional[str] = Field(default=None, min_length=1, max_length=50)
     descripcion: Optional[str] = None
-    padre_id:    Optional[int] = None
+    parent_id:    Optional[int] = None
 
 
 class CategoriaPublic(SQLModel):
     id:          int
     nombre:      str
     descripcion: Optional[str]
-    padre_id:    Optional[int]
+    parent_id:    Optional[int]

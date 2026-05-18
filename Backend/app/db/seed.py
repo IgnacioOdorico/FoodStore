@@ -56,6 +56,10 @@ def run() -> None:
                 "password": "Admin1234!", "roles": ["ADMIN"]
             },
             {
+                "nombre": "Emilia", "apellido": "Stock", "email": "empleado@nachopizza.com",
+                "password": "Empleado1234!", "roles": ["STOCK"]
+            },
+            {
                 "nombre": "Juan", "apellido": "Cliente", "email": "juan@ejemplo.com",
                 "password": "Juan1234!", "roles": ["CLIENT"]
             },

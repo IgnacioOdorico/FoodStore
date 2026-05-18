@@ -25,8 +25,22 @@ class CategoriaService:
         self.uow = uow
 
     def list_all(self) -> list[Categoria]:
-        """Lista todas las categorías."""
-        return self.uow.categorias.get_all()
+        """Lista todas las categorías.
+
+        Devuelve una lista de dicts serializables para evitar errores de
+        DetachedInstance cuando la sesión se cierra antes de la serialización
+        del `response_model` en FastAPI.
+        """
+        categorias = self.uow.categorias.get_all()
+        return [
+            {
+                "id": c.id,
+                "nombre": c.nombre,
+                "descripcion": c.descripcion,
+                "parent_id": c.padre_id,
+            }
+            for c in categorias
+        ]
 
     def get_by_id(self, categoria_id: int) -> Categoria:
         """Obtiene una categoría por ID o lanza 404."""
@@ -36,7 +50,12 @@ class CategoriaService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Categoría no encontrada",
             )
-        return categoria
+        return {
+            "id": categoria.id,
+            "nombre": categoria.nombre,
+            "descripcion": categoria.descripcion,
+            "parent_id": categoria.padre_id,
+        }
 
     def create(self, cat_in: CategoriaCreate) -> Categoria:
         """Crea una nueva categoría. Nombre debe ser único."""
@@ -46,8 +65,18 @@ class CategoriaService:
                 detail="Ya existe una categoría con ese nombre",
             )
 
-        categoria = Categoria.model_validate(cat_in)
-        return self.uow.categorias.add(categoria)
+        # Map API schema `parent_id` to model field `padre_id` before creating
+        data = cat_in.model_dump()
+        if 'parent_id' in data:
+            data['padre_id'] = data.pop('parent_id')
+        categoria = Categoria(**data)
+        created = self.uow.categorias.add(categoria)
+        return {
+            "id": created.id,
+            "nombre": created.nombre,
+            "descripcion": created.descripcion,
+            "parent_id": created.padre_id,
+        }
 
     def update(self, categoria_id: int, cat_in: CategoriaUpdate) -> Categoria:
         """Actualización parcial de una categoría."""
@@ -59,6 +88,9 @@ class CategoriaService:
             )
 
         update_data = cat_in.model_dump(exclude_unset=True)
+        # Map API `parent_id` -> model `padre_id` for updates
+        if 'parent_id' in update_data:
+            update_data['padre_id'] = update_data.pop('parent_id')
 
         if "nombre" in update_data:
             if self.uow.categorias.exists_nombre_excluding(
@@ -72,7 +104,13 @@ class CategoriaService:
         for key, value in update_data.items():
             setattr(categoria, key, value)
 
-        return self.uow.categorias.update(categoria)
+        updated = self.uow.categorias.update(categoria)
+        return {
+            "id": updated.id,
+            "nombre": updated.nombre,
+            "descripcion": updated.descripcion,
+            "parent_id": updated.padre_id,
+        }
 
     def delete(self, categoria_id: int) -> None:
         """Elimina una categoría por ID o lanza 404."""

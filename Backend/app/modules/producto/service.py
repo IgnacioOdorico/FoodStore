@@ -74,31 +74,65 @@ class ProductoService:
 
     def _get_with_details(self, id: int) -> ProductoReadWithDetails:
         producto = self.uow.session.get(Producto, id)
-        dto = ProductoReadWithDetails.model_validate(producto)
 
-        # Cargar datos extra de categorías
-        for cat_dto in dto.categorias:
+        # Construir un dict serializable para evitar DetachedInstanceError
+        producto_dict = {
+            "id": producto.id,
+            "nombre": producto.nombre,
+            "descripcion": producto.descripcion,
+            "precio_base": producto.precio_base,
+            "imagen_url": producto.imagen_url,
+            "disponible": producto.disponible,
+            "created_at": producto.created_at,
+            "updated_at": producto.updated_at,
+            "deleted_at": producto.deleted_at,
+            "categorias": [],
+            "ingredientes": [],
+        }
+
+        # Categorías: mapear padre_id -> parent_id y anotar es_principal
+        for cat in producto.categorias:
+            cat_entry = {
+                "id": cat.id,
+                "nombre": cat.nombre,
+                "descripcion": cat.descripcion,
+                "parent_id": getattr(cat, "padre_id", None),
+                "es_principal": False,
+            }
             link = self.uow.session.exec(
                 select(ProductoCategoria).where(
                     ProductoCategoria.producto_id == id,
-                    ProductoCategoria.categoria_id == cat_dto.id,
+                    ProductoCategoria.categoria_id == cat.id,
                 )
             ).first()
             if link:
-                cat_dto.es_principal = link.es_principal
+                cat_entry["es_principal"] = link.es_principal
+            producto_dict["categorias"].append(cat_entry)
 
-        # Cargar datos extra de ingredientes (cantidad)
-        for ing_dto in dto.ingredientes:
+        # Ingredientes: mapear campos y anotar cantidad/es_removible
+        for ing in producto.ingredientes:
+            ing_entry = {
+                "id": ing.id,
+                "nombre": ing.nombre,
+                "unidad_medida": ing.unidad_medida,
+                "stock_actual": getattr(ing, "stock_actual", 0.0),
+                "created_at": getattr(ing, "created_at", None),
+                "updated_at": getattr(ing, "updated_at", None),
+                "cantidad": 0.0,
+                "es_removible": False,
+            }
             link = self.uow.session.exec(
                 select(ProductoIngrediente).where(
                     ProductoIngrediente.producto_id == id,
-                    ProductoIngrediente.ingrediente_id == ing_dto.id,
+                    ProductoIngrediente.ingrediente_id == ing.id,
                 )
             ).first()
             if link:
-                ing_dto.cantidad = link.cantidad
-                ing_dto.es_removible = link.es_removible
+                ing_entry["cantidad"] = link.cantidad
+                ing_entry["es_removible"] = link.es_removible
+            producto_dict["ingredientes"].append(ing_entry)
 
+        dto = ProductoReadWithDetails.model_validate(producto_dict)
         return dto
 
     def update_producto(self, id: int, data: ProductoUpdate) -> ProductoReadWithDetails | None:

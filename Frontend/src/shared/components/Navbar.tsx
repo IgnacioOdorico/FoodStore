@@ -7,8 +7,8 @@ export const Navbar: React.FC = () => {
   const { user, logout, hasRole } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 

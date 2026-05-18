@@ -7,7 +7,11 @@ type Props = {
 };
 
 export const ProtectedRoute = ({ allowedRoles }: Props) => {
-  const { user, hasRole } = useAuthStore();
+  const { user, hasRole, sessionReady } = useAuthStore();
+
+  if (!sessionReady) {
+    return null;
+  }
 
   // si no inició sesión → al login
   if (!user) {
